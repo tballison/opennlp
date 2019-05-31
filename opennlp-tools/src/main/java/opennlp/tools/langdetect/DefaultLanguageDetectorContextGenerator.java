@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import opennlp.tools.ngram.NGramModel;
+import opennlp.tools.ngram.NGramModelSimplified;
 import opennlp.tools.util.StringList;
 import opennlp.tools.util.normalizer.AggregateCharSequenceNormalizer;
 import opennlp.tools.util.normalizer.CharSequenceNormalizer;
@@ -57,7 +58,7 @@ public class DefaultLanguageDetectorContextGenerator implements LanguageDetector
   @Override
   public String[] getContext(CharSequence document) {
     Collection<String> context = new ArrayList<>();
-
+/*
     NGramModel model = new NGramModel();
     model.add(normalizer.normalize(document), minLength, maxLength);
 
@@ -65,7 +66,15 @@ public class DefaultLanguageDetectorContextGenerator implements LanguageDetector
       if (tokenList.size() > 0) {
         context.add(tokenList.getToken(0));
       }
+    }*/
+
+    NGramModelSimplified model = new NGramModelSimplified();
+    model.add(normalizer.normalize(document), minLength, maxLength);
+
+    for (String token : model) {
+      context.add(token);
     }
+
     return context.toArray(new String[context.size()]);
   }
 }
