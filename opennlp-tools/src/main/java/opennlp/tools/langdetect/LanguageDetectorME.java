@@ -48,6 +48,21 @@ public class LanguageDetectorME implements LanguageDetector {
     this.mContextGenerator = model.getFactory().getContextGenerator();
   }
 
+  /**
+   * Initializes the current instance with a language detector model.
+   *
+   * <b>EXPERT:</b>If there is a mismatch between the output of the generator
+   * used to build the model and this generator, there could be serious
+   * problems with detection.
+   *
+   * @param model the language detector model
+   * @param generator generator to convert string to ngrams/features
+   */
+  public LanguageDetectorME(LanguageDetectorModel model,
+                            LanguageDetectorContextGenerator generator) {
+    this.model = model;
+    this.mContextGenerator = generator;
+  }
   @Override
   public Language[] predictLanguages(CharSequence content) {
     double[] eval = model.getMaxentModel().eval(mContextGenerator.getContext(content.toString()));

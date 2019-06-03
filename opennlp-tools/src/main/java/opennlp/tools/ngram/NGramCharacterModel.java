@@ -34,11 +34,11 @@ import opennlp.tools.util.StringList;
 import opennlp.tools.util.StringUtil;
 
 /**
- * The {@link NGramModelSimplified} can be used to crate ngrams and character ngrams.
+ * The {@link NGramCharacterModel} can be used to create character ngrams.
  *
- * @see StringList
+ * @see {@NGramModel} for an alternate class built on {@link StringList}.
  */
-public class NGramModelSimplified implements Iterable<String> {
+public class NGramCharacterModel implements Iterable<String> {
 
   protected static final String COUNT = "count";
 
@@ -47,10 +47,43 @@ public class NGramModelSimplified implements Iterable<String> {
   /**
    * Initializes an empty instance.
    */
-  public NGramModelSimplified() {
+  public NGramCharacterModel() {
   }
 
+  /**
+   * Initializes the current instance.
+   *
+   * @param in the serialized model stream
+   * @throws IOException
+   */
+  public NGramCharacterModel(InputStream in) throws IOException {
+    DictionaryEntryPersistor.create(in, entry -> {
 
+      int count;
+      String countValueString = null;
+
+      try {
+        countValueString = entry.getAttributes().getValue(COUNT);
+
+        if (countValueString == null) {
+          throw new InvalidFormatException(
+              "The count attribute must be set!");
+        }
+
+        count = Integer.parseInt(countValueString);
+      } catch (NumberFormatException e) {
+        throw new InvalidFormatException("The count attribute '" + countValueString
+            + "' must be a number!", e);
+      }
+
+      StringList stringList = entry.getTokens();
+      if (stringList.size() > 0) {
+        String ngram = entry.getTokens().getToken(0);
+        add(ngram);
+        setCount(ngram, count);
+      }
+    });
+  }
 
   /**
    * Retrieves the count of the given ngram.
@@ -87,7 +120,7 @@ public class NGramModelSimplified implements Iterable<String> {
   }
 
   /**
-   * Adds one NGram, if it already exists the count increase by one.
+   * Adds one character NGram, if it already exists the count increase by one.
    *
    * @param ngram
    */
@@ -113,8 +146,8 @@ public class NGramModelSimplified implements Iterable<String> {
       for (int textIndex = 0;
           textIndex + lengthIndex - 1 < chars.length(); textIndex++) {
 
-        String gram = //StringUtil.toLowerCase(
-            chars.subSequence(textIndex, textIndex + lengthIndex).toString();//);
+        String gram = StringUtil.toLowerCase(
+            chars.subSequence(textIndex, textIndex + lengthIndex));
 
         add(gram);
       }
@@ -133,12 +166,12 @@ public class NGramModelSimplified implements Iterable<String> {
   /**
    * Checks fit he given tokens are contained by the current instance.
    *
-   * @param tokens
+   * @param ngram
    *
    * @return true if the ngram is contained
    */
-  public boolean contains(String tokens) {
-    return mNGrams.containsKey(tokens);
+  public boolean contains(String ngram) {
+    return mNGrams.containsKey(ngram);
   }
 
   /**
@@ -200,6 +233,78 @@ public class NGramModelSimplified implements Iterable<String> {
     }
   }
 
+  /**
+   * Creates a dictionary which contain all {@link StringList} which
+   * are in the current {@link NGramCharacterModel}.
+   *
+   * Entries which are only different in the case are merged into one.
+   *
+   * Calling this method is the same as calling {@link #toDictionary(boolean)} with true.
+   *
+   * @return a dictionary of the ngrams
+   */
+  public Dictionary toDictionary() {
+    return toDictionary(false);
+  }
+
+  /**
+   * Creates a dictionary which contains all {@link String}s which
+   * are in the current {@link NGramCharacterModel}.
+   *
+   * @param caseSensitive Specifies whether case distinctions should be kept
+   *                      in the creation of the dictionary.
+   *
+   * @return a dictionary of the ngrams
+   */
+  public Dictionary toDictionary(boolean caseSensitive) {
+
+    Dictionary dict = new Dictionary(caseSensitive);
+
+    for (String string : this) {
+      dict.put(new StringList(string));
+    }
+
+    return dict;
+  }
+
+  /**
+   * Writes the ngram instance to the given {@link OutputStream}.
+   *
+   * @param out
+   *
+   * @throws IOException if an I/O Error during writing occurs
+   */
+  public void serialize(OutputStream out) throws IOException {
+    Iterator<Entry> entryIterator = new Iterator<Entry>()
+    {
+      private Iterator<String> mDictionaryIterator = NGramCharacterModel.this.iterator();
+
+      @Override
+      public boolean hasNext() {
+        return mDictionaryIterator.hasNext();
+      }
+
+      @Override
+      public Entry next() {
+
+        StringList tokens = new StringList(mDictionaryIterator.next());
+
+        Attributes attributes = new Attributes();
+
+        attributes.setValue(COUNT, Integer.toString(getCount(tokens.getToken(0))));
+        
+        return new Entry(tokens, attributes);
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+
+    };
+
+    DictionaryEntryPersistor.serialize(out, entryIterator, false);
+  }
 
   @Override
   public boolean equals(Object obj) {
@@ -208,8 +313,8 @@ public class NGramModelSimplified implements Iterable<String> {
     if (obj == this) {
       result = true;
     }
-    else if (obj instanceof NGramModelSimplified) {
-      NGramModelSimplified model  = (NGramModelSimplified) obj;
+    else if (obj instanceof NGramCharacterModel) {
+      NGramCharacterModel model  = (NGramCharacterModel) obj;
 
       result = mNGrams.equals(model.mNGrams);
     }

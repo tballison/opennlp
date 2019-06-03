@@ -20,28 +20,30 @@ package opennlp.tools.langdetect;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import opennlp.tools.ngram.NGramModel;
-import opennlp.tools.util.StringList;
+import opennlp.tools.ngram.NGramCharacterModel;
+import opennlp.tools.ngram.SlightlyFasterNGramCharacterModel;
 import opennlp.tools.util.normalizer.AggregateCharSequenceNormalizer;
 import opennlp.tools.util.normalizer.CharSequenceNormalizer;
 
 /**
  * A context generator for language detector.
  */
-public class DefaultLanguageDetectorContextGenerator implements LanguageDetectorContextGenerator {
+public class SlightlyFasterNGramCharContextGenerator implements LanguageDetectorContextGenerator {
+
+  private static final String FIELD = "f";
 
   protected final int minLength;
   protected final int maxLength;
   protected final CharSequenceNormalizer normalizer;
 
   /**
-   * Creates a customizable @{@link DefaultLanguageDetectorContextGenerator} that computes ngrams from text
+   * Creates a customizable @{@link SlightlyFasterNGramCharContextGenerator} that computes ngrams from text
    * @param minLength min ngrams chars
    * @param maxLength max ngrams chars
    * @param normalizers zero or more normalizers to
    *                    be applied in to the text before extracting ngrams
    */
-  public DefaultLanguageDetectorContextGenerator(int minLength, int maxLength,
+  public SlightlyFasterNGramCharContextGenerator(int minLength, int maxLength,
                                                  CharSequenceNormalizer... normalizers) {
     this.minLength = minLength;
     this.maxLength = maxLength;
@@ -58,15 +60,12 @@ public class DefaultLanguageDetectorContextGenerator implements LanguageDetector
   public String[] getContext(CharSequence document) {
     Collection<String> context = new ArrayList<>();
 
-    NGramModel model = new NGramModel();
+    SlightlyFasterNGramCharacterModel model = new SlightlyFasterNGramCharacterModel();
     model.add(normalizer.normalize(document), minLength, maxLength);
 
-    for (StringList tokenList : model) {
-      if (tokenList.size() > 0) {
-        context.add(tokenList.getToken(0));
-      }
+    for (String token : model) {
+      context.add(token);
     }
-
     return context.toArray(new String[context.size()]);
   }
 }

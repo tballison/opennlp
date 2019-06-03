@@ -117,31 +117,4 @@ public class LanguageDetectorMETest {
     return new LanguageDetectorSampleStream(lineStream);
   }
 
-  @Test
-  public void testLong() throws Exception {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < 10000; i++) {
-      sb.append("estava em uma marcenaria na Rua Bruno ");
-    }
-    LanguageDetector ld = new LanguageDetectorME(
-            new LanguageDetectorModel(new File("C:/data/langid/langdetect-183.bin")));
-    for (int j = 0; j < 4; j++) {
-      long start = System.currentTimeMillis();
-      Map<String, Integer> map = new HashMap<>();
-      for (int i = 0; i < 50; i++) {
-        Language language = ld.predictLanguage(sb.toString());
-        Integer cnt = map.get(language.getLang());
-        if (cnt == null) {
-          map.put(language.getLang(), 1);
-        } else {
-          map.put(language.getLang(), ++cnt);
-        }
-      }
-      long elapsed = System.currentTimeMillis() - start;
-      if (j > 0) {
-        //don't print out first warm up
-        System.out.println(elapsed + " : " + map);
-      }
-    }
-  }
 }
