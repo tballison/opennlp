@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import opennlp.tools.tokenize.WhitespaceTokenizer;
@@ -39,6 +41,7 @@ public class BratAnnotationStream implements ObjectStream<BratAnnotation> {
 
     static final int ID_OFFSET = 0;
     static final int TYPE_OFFSET = 1;
+    static final String NOTES_TYPE = "AnnotatorNotes";
 
     BratAnnotation parse(Span[] tokens, CharSequence line) throws IOException {
       return null;
@@ -65,14 +68,26 @@ public class BratAnnotationStream implements ObjectStream<BratAnnotation> {
       if (values.length > 4) {
         String type = values[BratAnnotationParser.TYPE_OFFSET].getCoveredText(line).toString();
 
-        int endOffset = -1;
-
         int firstTextTokenIndex = -1;
 
+        int beginIndex = parseInt(values[BEGIN_OFFSET].getCoveredText(line).toString());
+
+        List<Span> fragments = new ArrayList<>();
+
         for (int i = END_OFFSET; i < values.length; i++) {
-          if (!values[i].getCoveredText(line).toString().contains(";")) {
+
+          int endOffset;
+          int nextBeginOffset = -1;
+          if (values[i].getCoveredText(line).toString().contains(";")) {
+            String[] parts = values[i].getCoveredText(line).toString().split(";");
+            endOffset = parseInt(parts[0]);
+            fragments.add(new Span(beginIndex, endOffset, type));
+            beginIndex = parseInt(parts[1]);
+          }
+          else {
             endOffset = parseInt(values[i].getCoveredText(line).toString());
             firstTextTokenIndex = i + 1;
+            fragments.add(new Span(beginIndex, endOffset, type));
             break;
           }
         }
@@ -83,8 +98,7 @@ public class BratAnnotationStream implements ObjectStream<BratAnnotation> {
             values[values.length - 1].getEnd()).toString();
 
         try {
-          return new SpanAnnotation(id, type, new Span(parseInt(values[BEGIN_OFFSET]
-              .getCoveredText(line).toString()), endOffset, type), coveredText);
+          return new SpanAnnotation(id, type, fragments.toArray(new Span[fragments.size()]), coveredText);
         }
         catch (IllegalArgumentException e) {
           throw new InvalidFormatException(e);
@@ -178,6 +192,22 @@ public class BratAnnotationStream implements ObjectStream<BratAnnotation> {
     }
   }
 
+  static class AnnotatorNoteParser extends BratAnnotationParser {
+    private static final int ATTACH_TO_OFFSET = 2;
+    private static final int START_VALUE_OFFSET = 3;
+
+    @Override
+    BratAnnotation parse(Span[] tokens, CharSequence line) throws IOException {
+
+      
+      Span noteSpan = new Span( tokens[START_VALUE_OFFSET].getStart(), 
+          tokens[tokens.length - 1].getEnd() );      
+
+      return new AnnotatorNoteAnnotation(tokens[ID_OFFSET].getCoveredText(line).toString(), 
+          tokens[ATTACH_TO_OFFSET].getCoveredText(line).toString(), 
+          noteSpan.getCoveredText(line).toString());
+    }
+  }
   private final AnnotationConfiguration config;
   private final BufferedReader reader;
   private final String id;
@@ -219,9 +249,17 @@ public class BratAnnotationStream implements ObjectStream<BratAnnotation> {
           case 'E':
             parser = new EventAnnotationParser();
             break;
-
+          case '#':
+            // the # can be a Note or a comment... if a note, handle it, otherwise skip the unsupported type..
+            if ( tokens[BratAnnotationParser.TYPE_OFFSET].getCoveredText(line).toString().equals(
+                BratAnnotationParser.NOTES_TYPE) ) {
+              parser = new AnnotatorNoteParser();
+            } else {
+              return read();
+            }
+            break;
           default:
-            // Skip it, do that for everything unsupported (e.g. "*" id)
+          // Skip it, do that for everything unsupported (e.g. "*" id)
             return read();
         }
 

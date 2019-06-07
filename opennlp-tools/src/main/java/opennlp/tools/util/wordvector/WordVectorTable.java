@@ -17,6 +17,8 @@
 
 package opennlp.tools.util.wordvector;
 
+import java.util.Iterator;
+
 import opennlp.tools.util.java.Experimental;
 
 /**
@@ -27,7 +29,10 @@ import opennlp.tools.util.java.Experimental;
  */
 @Experimental
 public interface WordVectorTable {
-  WordVector get(CharSequence token);
+
+  WordVector get(String token);
+
+  Iterator<String> tokens();
 
   int size();
 

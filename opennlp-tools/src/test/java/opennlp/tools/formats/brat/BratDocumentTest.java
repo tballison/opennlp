@@ -47,5 +47,51 @@ public class BratDocumentTest {
     Assert.assertTrue(doc.getText().endsWith("multinational process . \n"));
 
     Assert.assertEquals(18, doc.getAnnotations().size());
+    
+    BratAnnotation annotation = doc.getAnnotation("T2");
+    checkNote(annotation, "Barack Obama", "President Obama was the 44th U.S. president");
+    annotation = doc.getAnnotation("T3");
+    checkNote(annotation,"South Korea","The capital of South Korea is Seoul");
+  }
+  
+  private void checkNote(BratAnnotation annotation, String expectedCoveredText, String expectedNote) {
+    Assert.assertTrue(annotation instanceof SpanAnnotation);
+    SpanAnnotation spanAnn = (SpanAnnotation) annotation;
+    Assert.assertEquals(expectedCoveredText, spanAnn.getCoveredText());
+    Assert.assertEquals(expectedNote, spanAnn.getNote());
+  }
+
+  /**
+   * Parse spans that have multiple fragments and ensure they are matched to the correct tokens.
+   *
+   * Test to ensure OPENNLP-1193 works.
+   */
+  @Test
+  public void testSpanWithMultiFragments() throws IOException {
+    Map<String, String> typeToClassMap = new HashMap<>();
+    BratAnnotationStreamTest.addEntityTypes(typeToClassMap);
+    AnnotationConfiguration config = new AnnotationConfiguration(typeToClassMap);
+
+    InputStream txtIn = BratDocumentTest.class.getResourceAsStream(
+        "/opennlp/tools/formats/brat/opennlp-1193.txt");
+
+    InputStream annIn = BratDocumentTest.class.getResourceAsStream(
+        "/opennlp/tools/formats/brat/opennlp-1193.ann");
+
+    BratDocument doc = BratDocument.parseDocument(config, "opennlp-1193", txtIn, annIn);
+
+    SpanAnnotation t1 = (SpanAnnotation) doc.getAnnotation("T1");
+    Assert.assertEquals(t1.getSpans()[0].getStart(), 0);
+    Assert.assertEquals(t1.getSpans()[0].getEnd(), 7);
+    Assert.assertEquals(t1.getSpans()[1].getStart(), 8);
+    Assert.assertEquals(t1.getSpans()[1].getEnd(), 15);
+    Assert.assertEquals(t1.getSpans()[2].getStart(), 17);
+    Assert.assertEquals(t1.getSpans()[2].getEnd(), 24);
+
+    SpanAnnotation t2 = (SpanAnnotation) doc.getAnnotation("T2");
+    Assert.assertEquals(t2.getSpans()[0].getStart(), 26);
+    Assert.assertEquals(t2.getSpans()[0].getEnd(), 33);
+    Assert.assertEquals(t2.getSpans()[1].getStart(), 40);
+    Assert.assertEquals(t2.getSpans()[1].getEnd(), 47);
   }
 }

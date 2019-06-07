@@ -19,6 +19,7 @@ package opennlp.tools.formats.brat;
 
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -34,10 +35,20 @@ public class BratDocumentParser {
 
   private SentenceDetector sentDetector;
   private Tokenizer tokenizer;
+  private final Set<String> nameTypes;
 
   public BratDocumentParser(SentenceDetector sentenceDetector, Tokenizer tokenizer) {
+    this(sentenceDetector, tokenizer, null);
+  }
+
+  public BratDocumentParser(SentenceDetector sentenceDetector, Tokenizer tokenizer,
+                            Set<String> nameTypes) {
+    if (nameTypes != null && nameTypes.size() == 0) {
+      throw new IllegalArgumentException("nameTypes should be null or have one or more elements");
+    }
     this.sentDetector = sentenceDetector;
     this.tokenizer = tokenizer;
+    this.nameTypes = nameTypes;
   }
 
   public List<NameSample> parse(BratDocument sample) {
@@ -49,16 +60,23 @@ public class BratDocumentParser {
     Map<Integer, Span> coveredIndexes = new HashMap<>();
 
     for (BratAnnotation ann : sample.getAnnotations()) {
-      if (ann instanceof SpanAnnotation) {
+      if (isSpanAnnotation(ann)) {
         entityIdSet.add(ann.getId());
 
-        Span span = ((SpanAnnotation) ann).getSpan();
-        for (int i = span.getStart(); i < span.getEnd(); i++) {
-          coveredIndexes.put(i, span);
+        for (Span span : ((SpanAnnotation) ann).getSpans()) {
+          for (int i = span.getStart(); i < span.getEnd(); i++) {
+            coveredIndexes.put(i, span);
+          }
         }
       }
     }
 
+    // Map spans to tokens, and merge fragments based on token
+
+    //
+
+
+    // Detect sentence and correct sentence spans assuming no split can be inside a name annotation
     List<Span> sentences = new ArrayList<>();
     for (Span sentence : sentDetector.sentPosDetect(sample.getText())) {
       Span conflictingName = coveredIndexes.get(sentence.getStart());
@@ -109,26 +127,44 @@ public class BratDocumentParser {
 
       for (BratAnnotation ann : sample.getAnnotations()) {
 
-        if (ann instanceof SpanAnnotation) {
+        if (isSpanAnnotation(ann)) {
           SpanAnnotation entity = (SpanAnnotation) ann;
 
-          Span entitySpan = entity.getSpan();
+          List<Span> mappedFragments = new ArrayList<>();
 
-          if (sentence.contains(entitySpan)) {
-            entityIdSet.remove(ann.getId());
+          for (Span entitySpan : entity.getSpans()) {
+            if (sentence.contains(entitySpan)) {
+              entityIdSet.remove(ann.getId());
 
-            entitySpan = entitySpan.trim(sample.getText());
+              entitySpan = entitySpan.trim(sample.getText());
 
-            Integer nameBeginIndex = tokenIndexMap.get(-entitySpan.getStart());
-            Integer nameEndIndex = tokenIndexMap.get(entitySpan.getEnd());
+              Integer nameBeginIndex = tokenIndexMap.get(-entitySpan.getStart());
+              Integer nameEndIndex = tokenIndexMap.get(entitySpan.getEnd());
 
-            if (nameBeginIndex != null && nameEndIndex != null) {
-              names.add(new Span(nameBeginIndex, nameEndIndex, entity.getType()));
+              if (nameBeginIndex != null && nameEndIndex != null) {
+                mappedFragments.add(new Span(nameBeginIndex, nameEndIndex, entity.getType()));
+              } else {
+                System.err.println("Dropped entity " + entity.getId() + " ("
+                    + entitySpan.getCoveredText(sample.getText()) + ") " + " in document "
+                    + sample.getId() + ", it is not matching tokenization!");
+              }
             }
-            else {
-              System.err.println("Dropped entity " + entity.getId() + " ("
-                  + entitySpan.getCoveredText(sample.getText()) + ") " + " in document "
-                  + sample.getId() + ", it is not matching tokenization!");
+          }
+
+          Collections.sort(mappedFragments);
+
+          for (int i = 1; i < mappedFragments.size(); i++) {
+            if (mappedFragments.get(i - 1).getEnd() ==
+                mappedFragments.get(i).getStart()) {
+              mappedFragments.set(i, new Span(mappedFragments.get(i - 1).getStart(),
+                  mappedFragments.get(i).getEnd(), mappedFragments.get(i).getType()));
+              mappedFragments.set(i - 1, null);
+            }
+          }
+
+          for (Span span : mappedFragments) {
+            if (span != null ) {
+              names.add(span);
             }
           }
         }
@@ -144,6 +180,13 @@ public class BratDocumentParser {
     }
 
     return samples;
+  }
+
+  private boolean isSpanAnnotation(BratAnnotation ann) {
+    if (ann instanceof SpanAnnotation && (nameTypes == null || nameTypes.contains(ann.getType()))) {
+      return true;
+    }
+    return false;
   }
 }
 

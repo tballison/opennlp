@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import opennlp.tools.ml.AbstractEventTrainer;
+import opennlp.tools.ml.ArrayMath;
 import opennlp.tools.ml.model.AbstractModel;
 import opennlp.tools.ml.model.DataIndexer;
 import opennlp.tools.ml.model.EvalParameters;
@@ -480,7 +481,14 @@ public class GISTrainer extends AbstractEventTrainer {
   /* Estimate and return the model parameters. */
   private void findParameters(int iterations, double correctionConstant) {
     int threads = modelExpects.length;
-    ExecutorService executor = Executors.newFixedThreadPool(threads);
+
+    ExecutorService executor = Executors.newFixedThreadPool(threads, runnable -> {
+      Thread thread = new Thread(runnable);
+      thread.setName("opennlp.tools.ml.maxent.ModelExpactationComputeTask.nextIteration()");
+      thread.setDaemon(true);
+      return thread;
+    });
+
     CompletionService<ModelExpectationComputeTask> completionService =
         new ExecutorCompletionService<>(executor);
     double prevLL = 0.0;
@@ -691,12 +699,7 @@ public class GISTrainer extends AbstractEventTrainer {
 
         numEvents += numTimesEventsSeen[ei];
         if (printMessages) {
-          int max = 0;
-          for (int oi = 1; oi < numOutcomes; oi++) {
-            if (modelDistribution[oi] > modelDistribution[max]) {
-              max = oi;
-            }
-          }
+          int max = ArrayMath.argmax(modelDistribution);
           if (max == outcomeList[ei]) {
             numCorrect += numTimesEventsSeen[ei];
           }

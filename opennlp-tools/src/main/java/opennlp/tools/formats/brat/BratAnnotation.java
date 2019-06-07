@@ -23,10 +23,12 @@ public abstract class BratAnnotation {
 
   private final String id;
   private final String type;
-
+  private String note;
+  
   protected BratAnnotation(String id, String type) {
     this.id = Objects.requireNonNull(id);
     this.type = Objects.requireNonNull(type);
+    this.note = "";
   }
 
   public String getId() {
@@ -37,8 +39,16 @@ public abstract class BratAnnotation {
     return type;
   }
 
+  public void setNote(String note) {
+    this.note = note;
+  }
+  
+  public String getNote() {
+    return note;
+  }
+  
   @Override
   public String toString() {
-    return id + " " + type;
+    return (id + " " + type + " " + note).trim();
   }
 }

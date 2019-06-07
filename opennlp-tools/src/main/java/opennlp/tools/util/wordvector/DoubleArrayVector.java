@@ -22,7 +22,7 @@ import java.nio.FloatBuffer;
 
 class DoubleArrayVector implements WordVector {
 
-  private double[] vector;
+  private final double[] vector;
 
   DoubleArrayVector(double[] vector) {
     this.vector = vector;
@@ -44,27 +44,17 @@ class DoubleArrayVector implements WordVector {
   }
 
   @Override
-  public float[] toFloatArray() {
+  public FloatBuffer toFloatBuffer() {
     float[] floatVector = new float[vector.length];
     for (int i = 0; i < floatVector.length ; i++) {
       floatVector[i] = (float) vector[i];
     }
-    return floatVector;
-  }
-
-  @Override
-  public double[] toDoubleArray() {
-    return toDoubleBuffer().array();
-  }
-
-  @Override
-  public FloatBuffer toFloatBuffer() {
-    return FloatBuffer.wrap(toFloatArray()).asReadOnlyBuffer();
+    return FloatBuffer.wrap(floatVector).asReadOnlyBuffer();
   }
 
   @Override
   public DoubleBuffer toDoubleBuffer() {
-    return DoubleBuffer.wrap(vector);
+    return DoubleBuffer.wrap(vector).asReadOnlyBuffer();
   }
 
   @Override

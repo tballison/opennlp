@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import opennlp.tools.ml.ArrayMath;
 import opennlp.tools.ml.model.DataIndexer;
 
 /**
@@ -103,7 +104,15 @@ public class ParallelNegLogLikelihood extends NegLogLikelihood {
    * Compute tasks in parallel
    */
   private void computeInParallel(double[] x, Class<? extends ComputeTask> taskClass) {
-    ExecutorService executor = Executors.newFixedThreadPool(threads);
+
+    ExecutorService executor = Executors.newFixedThreadPool(threads, runnable -> {
+      Thread thread = new Thread(runnable);
+      thread.setName(
+          "opennlp.tools.ml.maxent.quasinewton.ParallelNegLogLikelihood.computeInParallel()");
+      thread.setDaemon(true);
+      return thread;
+    });
+
     int taskSize = numContexts / threads;
     int leftOver = numContexts % threads;
 

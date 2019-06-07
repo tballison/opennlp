@@ -39,7 +39,7 @@ under the License.
  		Tool with the following command.
 				<screen>
 				<![CDATA[
-$ opennlp Parser en-parser.bin en-parser-chunking.bin]]>
+$ opennlp Parser en-parser-chunking.bin]]>
 		</screen>
 		Loading the big parser model can take several seconds, be patient.
 		Copy this sample sentence to the console.
@@ -56,7 +56,7 @@ The quick brown fox jumps over the lazy dog .]]>
 		With the following command the input can be read from a file and be written to an output file.
 				<screen>
 				<![CDATA[
-$ opennlp Parser en-parser.bin en-parser-chunking.bin < article-tokenized.txt > article-parsed.txt.]]>
+$ opennlp Parser en-parser-chunking.bin < article-tokenized.txt > article-parsed.txt.]]>
 		</screen>
 		The article-tokenized.txt file must contain one sentence per line which is
 		tokenized with the English tokenizer model from our website.
@@ -131,7 +131,7 @@ Parse topParses[] = ParserTool.parseLine(sentence, parser, 1);]]>
 (TOP (S (NP-SBJ (PRP I) )(VP (VBP say) (NP (CD 1992) ))(. .) ('' '') ))]]>
 		</programlisting>
 		Penn Treebank annotation guidelines can be found on the
-            <ulink url="http://www.cis.upenn.edu/~treebank/">Penn Treebank home page</ulink>.
+            <ulink url="https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html">Penn Treebank home page</ulink>.
 		A parser model also contains a pos tagger model, depending on the amount of available
 		training data it is recommend to switch the tagger model against a tagger model which
 		was trained on a larger corpus. The pre-trained parser model provided on the website
@@ -182,7 +182,7 @@ Arguments description:
 		<screen>
 		<![CDATA[
 $ opennlp ParserTrainer -model en-parser-chunking.bin -parserType CHUNKING \
-                        -head-rules head_rules \
+                        -headRules head_rules \
                         -lang en -data train.all -encoding ISO-8859-1
     ]]>
 		</screen>

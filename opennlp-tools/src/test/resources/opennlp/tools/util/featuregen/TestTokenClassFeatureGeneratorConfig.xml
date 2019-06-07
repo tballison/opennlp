@@ -19,6 +19,10 @@
 	under the License.
 -->
 
-<generators>
-	<tokenclass wordAndClass="true"/>
-</generators>
+<featureGenerators name="test">
+  <generator class="opennlp.tools.util.featuregen.AggregatedFeatureGeneratorFactory">
+    <generator class="opennlp.tools.util.featuregen.TokenClassFeatureGeneratorFactory">
+      <bool name="wordAndClass">true</bool>
+    </generator>
+  </generator>
+</featureGenerators>
