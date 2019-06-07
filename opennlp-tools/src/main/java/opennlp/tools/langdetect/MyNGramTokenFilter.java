@@ -19,14 +19,18 @@ import org.apache.lucene.util.AttributeSource.State;
  * as a start/end word sentinel.
  */
 public final class MyNGramTokenFilter extends TokenFilter {
+    private static final char SPACE = ' ';
     private final int minGram;
     private final int maxGram;
-    private char[] curTermBuffer;
+    private char[] buffer = new char[1000];
     private int curTermLength;
     private int curTermCodePointCount;
     private int curGramSize;
     private int curPos;
     private int curPosIncr;
+    //this is the logical end of the buffer
+    private int bufferEnd = 0;
+    private boolean noMoreTokens = false;
     private State state;
     private final CharTermAttribute termAtt;
     private final PositionIncrementAttribute posIncrAtt;
@@ -47,48 +51,87 @@ public final class MyNGramTokenFilter extends TokenFilter {
 
     public final boolean incrementToken() throws IOException {
         while(true) {
-            if (this.curTermBuffer == null) {
-                if (!this.input.incrementToken()) {
-                    return false;
-                }
 
-                this.state = this.captureState();
-                this.curTermLength = this.termAtt.length()+2;
-                this.curTermCodePointCount = Character.codePointCount(this.termAtt, 0, this.termAtt.length())+2;
-                this.curPosIncr += this.posIncrAtt.getPositionIncrement();
-                this.curPos = 0;
-
-                this.curTermBuffer = new char[curTermLength];
-                curTermBuffer[0] = ' ';
-                curTermBuffer[curTermBuffer.length-1] = ' ';
-                System.arraycopy(termAtt.buffer(), 0, curTermBuffer, 1, curTermLength-2);
-                this.curGramSize = this.minGram;
-            }
-
-            if (this.curGramSize > this.maxGram || this.curPos + this.curGramSize > this.curTermCodePointCount) {
+            //|| this.curPos + this.curGramSize > this.curTermCodePointCount
+            if (this.curGramSize > this.maxGram) {
                 ++this.curPos;
                 this.curGramSize = this.minGram;
             }
-
-            if (this.curPos + this.curGramSize <= this.curTermCodePointCount) {
+            if (bufferEnd == 0 || curPos + maxGram >= bufferEnd) {
+                if (! noMoreTokens) {
+                    appendBuffer();
+                }
+            }
+            if (buffer[this.curPos] == SPACE && curGramSize == 1) {
+                curGramSize++;
+            }
+            if (this.curPos + this.curGramSize <= bufferEnd) {
                 this.restoreState(this.state);
-                int start = Character.offsetByCodePoints(this.curTermBuffer, 0, this.curTermLength, 0, this.curPos);
+/*                int start = Character.offsetByCodePoints(this.curTermBuffer, 0, this.curTermLength, 0, this.curPos);
                 int end = Character.offsetByCodePoints(this.curTermBuffer, 0, this.curTermLength, start, this.curGramSize);
-                this.termAtt.copyBuffer(this.curTermBuffer, start, end - start);
+                this.termAtt.copyBuffer(this.curTermBuffer, start, end - start);*/
+                int count = this.curTermLength;
+                if (this.curPos + this.curTermLength > this.bufferEnd) {
+                    count = this.bufferEnd-curPos;
+                }
+                int start = Character.offsetByCodePoints(this.buffer, this.curPos,
+                        count, this.curPos, 0);
+                int end = Character.offsetByCodePoints(this.buffer, this.curPos,
+                        count, start, this.curGramSize);
+                this.termAtt.copyBuffer(this.buffer, start, end - start);
+
                 this.posIncrAtt.setPositionIncrement(this.curPosIncr);
                 this.curPosIncr = 0;
                 ++this.curGramSize;
                 return true;
+            } else if (noMoreTokens) {
+                while (curPos+curGramSize >= bufferEnd && curGramSize > minGram) {
+                    curGramSize--;
+                }
+                if (curGramSize == minGram) {
+                    curPos++;
+                }
+                if (curPos + minGram > bufferEnd) {
+                    return false;
+                }
             }
-
-            this.curTermBuffer = null;
         }
+    }
+
+    private void appendBuffer() throws IOException {
+        if (!this.input.incrementToken()) {
+            noMoreTokens = true;
+            return;
+
+        }
+        this.state = this.captureState();
+        this.curTermLength = this.termAtt.length();
+        this.curTermCodePointCount = Character.codePointCount(this.termAtt, 0, this.termAtt.length());
+        this.curPosIncr += this.posIncrAtt.getPositionIncrement();
+        this.curGramSize = this.minGram;
+
+        //+1 for the potential dividing space
+        if ((this.curPos+curTermLength+1) >= this.buffer.length) {
+            //have to start over from the beginning
+            int lenToCopy = bufferEnd-curPos;
+            System.arraycopy(this.buffer, curPos, this.buffer, 0, lenToCopy);
+            this.curPos = 0;
+            bufferEnd = lenToCopy;
+        }
+        if (posIncrAtt.getPositionIncrement() > 0) {
+            this.buffer[this.bufferEnd] = SPACE;
+            this.bufferEnd++;
+        }
+
+        System.arraycopy(termAtt.buffer(), 0, buffer, bufferEnd, curTermLength);
+        bufferEnd += curTermLength;
     }
 
     public void reset() throws IOException {
         super.reset();
-        this.curTermBuffer = null;
         this.curPosIncr = 0;
+        this.bufferEnd = 0;
+        this.curPos = 0;
     }
 
     public void end() throws IOException {
