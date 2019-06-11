@@ -18,15 +18,11 @@
 package opennlp.tools.langdetect;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
-import opennlp.tools.util.MutableInt;
 import opennlp.tools.util.StringUtil;
-import opennlp.tools.util.normalizer.AggregateCharSequenceNormalizer;
-import opennlp.tools.util.normalizer.CharSequenceNormalizer;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
@@ -38,79 +34,70 @@ import org.apache.lucene.analysis.util.ClasspathResourceLoader;
 /**
  * A context generator for language detector.
  */
-public class LuceneDetectorContextGenerator implements LanguageDetectorContextGenerator {
+public class LuceneNGramIterator implements Iterator<String> {
 
   private static final String FIELD = "f";
 
-  protected final int minLength;
-  protected final int maxLength;
   private final Analyzer analyzer;
-
+  private String next = null;
+  private String text = null;
+  private TokenStream tokenStream = null;
+  private CharTermAttribute charTermAttribute = null;
   /**
-   * Creates a customizable @{@link LuceneDetectorContextGenerator} that computes ngrams from text
+   * Creates a customizable @{@link LuceneNGramIterator} that computes ngrams from text
    * @param minLength min ngrams chars
    * @param maxLength max ngrams chars
    */
-  public LuceneDetectorContextGenerator(int minLength, int maxLength) {
-    this.minLength = minLength;
-    this.maxLength = maxLength;
-
-    Map<String, String> edgeNGramParams = new HashMap<>();
-    edgeNGramParams.put("minGramSize", "1");
-    edgeNGramParams.put("maxGramSize", "3");
-    Map<String, String> typeFilterParams = new HashMap<>();
-    typeFilterParams.put("types", "stoptypes.txt");
+  public LuceneNGramIterator(int minLength, int maxLength) {
+    Map<String, String> ngramParams = new HashMap<>();
+    ngramParams.put("minGramSize", Integer.toString(minLength));
+    ngramParams.put("maxGramSize", Integer.toString(maxLength));
     try {
-      analyzer = CustomAnalyzer.builder(new ClasspathResourceLoader(LuceneDetectorContextGenerator.class))
-
+      analyzer = CustomAnalyzer.builder(new ClasspathResourceLoader(LuceneNGramIterator.class))
               .withTokenizer(UAX29URLEmailTokenizerFactory.class)
               .addTokenFilter(MyUAXTypeFilterFactory.class)
               .addTokenFilter(LowerCaseFilterFactory.class)
-              .addTokenFilter(MyNGramTokenFilterFactory.class, edgeNGramParams).build();
+              .addTokenFilter(MyNGramTokenFilterFactory.class, ngramParams).build();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-
   }
 
-  /**
-   * Generates the context for a document using character ngrams.
-   * @param document document to extract context from
-   * @return the generated context
-   */
   @Override
-  public String[] getContext(CharSequence document) {
-    Collection<String> context = new ArrayList<>();
-
-    Map<String, MutableInt> tokens = getNGramsViaLucene(document.toString());
-    context.addAll(tokens.keySet());
-
-    return context.toArray(new String[context.size()]);
+  public boolean hasNext() {
+    return next != null;
   }
 
-  private Map<String, MutableInt> getNGramsViaLucene(String s) {
-    Map<String, MutableInt> m = new HashMap<>();
-    try (TokenStream ts = analyzer.tokenStream(FIELD, s)) {
-      ts.reset();
-      CharTermAttribute charTermAttribute = ts.getAttribute(CharTermAttribute.class);
-      while (ts.incrementToken()) {
+  @Override
+  public String next() {
+    if (tokenStream == null) {
+      throw new IllegalStateException("Must call reset before iterating");
+    }
+    String ret = next;
+    next = null;
+    try {
+      while (tokenStream.incrementToken()) {
         String t = charTermAttribute.toString();
         if (StringUtil.isEmpty(t)) {
           continue;
         }
-        MutableInt cnt = m.get(t);
-        if (cnt == null) {
-          cnt = new MutableInt(1);
-          m.put(t, cnt);
-        } else {
-          cnt.increment();
-        }
+        next = t;
+        break;
       }
-      ts.end();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    return m;
+    return ret;
   }
 
+  public void reset(String txt) throws IOException {
+    if (tokenStream != null) {
+      tokenStream.end();
+      tokenStream.close();
+    }
+    this.text = txt;
+    tokenStream = analyzer.tokenStream(FIELD, text);
+    tokenStream.reset();
+    charTermAttribute = tokenStream.getAttribute(CharTermAttribute.class);
+  }
 }

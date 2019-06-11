@@ -12,14 +12,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.LongSummaryStatistics;
 import java.util.Map;
-import java.util.Queue;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import opennlp.tools.languagemodel.LanguageModel;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -46,7 +41,7 @@ public class LanguageDetectorSpeedTest {
                 new DefaultLanguageDetectorContextGenerator(1, 3),
                 new NGramCharContextGenerator(1, 3),
                 new SlightlyFasterNGramCharContextGenerator(1, 3),
-                new LuceneDetectorContextGenerator(1, 3)
+                new LuceneNGramIterator(1, 3)
         }) {
             long elapsed = runLoops(txt, new LanguageDetectorME(model, gen));
             System.out.println(gen.getClass().getSimpleName() + ": " + elapsed);
