@@ -57,14 +57,13 @@ public class DefaultLanguageDetectorContextGenerator implements LanguageDetector
   public String[] getContext(CharSequence document) {
     Collection<String> context = new ArrayList<>();
 
-    CharSequence chars = normalizer.normalize(document);
-
+    int[] codepoints = normalizer.normalize(document).codePoints()
+            .map(Character::toLowerCase).toArray();
     for (int lengthIndex = minLength; lengthIndex < maxLength + 1; lengthIndex++) {
       for (int textIndex = 0;
-           textIndex + lengthIndex - 1 < chars.length(); textIndex++) {
+           textIndex + lengthIndex - 1 < codepoints.length; textIndex++) {
 
-        String gram = StringUtil.toLowerCase(
-            chars.subSequence(textIndex, textIndex + lengthIndex));
+        String gram = new String(codepoints, textIndex, lengthIndex);
 
         context.add(gram);
       }
