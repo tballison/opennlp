@@ -19,8 +19,10 @@ package opennlp.tools.langdetect;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
-import opennlp.tools.util.StringUtil;
+import opennlp.tools.util.MutableInt;
 import opennlp.tools.util.normalizer.AggregateCharSequenceNormalizer;
 import opennlp.tools.util.normalizer.CharSequenceNormalizer;
 
@@ -70,5 +72,27 @@ public class DefaultLanguageDetectorContextGenerator implements LanguageDetector
     }
 
     return context.toArray(new String[context.size()]);
+  }
+
+  public Map<String, MutableInt> getContextMap(CharSequence document) {
+    Map<String, MutableInt> m = new HashMap<>();
+
+    int[] codepoints = normalizer.normalize(document).codePoints()
+            .map(Character::toLowerCase).toArray();
+    for (int lengthIndex = minLength; lengthIndex < maxLength + 1; lengthIndex++) {
+      for (int textIndex = 0;
+           textIndex + lengthIndex - 1 < codepoints.length; textIndex++) {
+
+        String gram = new String(codepoints, textIndex, lengthIndex);
+        MutableInt cnt = m.get(gram);
+        if (cnt == null) {
+          m.put(gram, new MutableInt(1));
+        } else {
+          cnt.increment();
+        }
+      }
+    }
+
+    return m;
   }
 }

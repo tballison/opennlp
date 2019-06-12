@@ -26,6 +26,7 @@ import opennlp.tools.ml.AbstractEventTrainer;
 import opennlp.tools.ml.EventTrainer;
 import opennlp.tools.ml.TrainerFactory;
 import opennlp.tools.ml.model.MaxentModel;
+import opennlp.tools.util.MutableInt;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.TrainingParameters;
 
@@ -50,7 +51,25 @@ public class LanguageDetectorME implements LanguageDetector {
 
   @Override
   public Language[] predictLanguages(CharSequence content) {
-    double[] eval = model.getMaxentModel().eval(mContextGenerator.getContext(content.toString()));
+    double[] eval = null;
+
+    if (mContextGenerator instanceof DefaultLanguageDetectorContextGenerator) {
+      Map<String, MutableInt> m =
+              ((DefaultLanguageDetectorContextGenerator)mContextGenerator)
+              .getContextMap(content);
+      String[] grams = new String[m.size()];
+      float[] cnts = new float[m.size()];
+      int i = 0;
+      for (Map.Entry<String, MutableInt> e : m.entrySet()) {
+        grams[i] = e.getKey();
+        cnts[i] = e.getValue().getValue();
+        i++;
+      }
+      eval = model.getMaxentModel().eval(grams, cnts);
+    } else {
+      eval = model.getMaxentModel().eval(mContextGenerator.getContext(
+              content.toString()));
+    }
     Language[] arr = new Language[eval.length];
     for (int i = 0; i < eval.length; i++) {
       arr[i] = new Language(model.getMaxentModel().getOutcome(i), eval[i]);
