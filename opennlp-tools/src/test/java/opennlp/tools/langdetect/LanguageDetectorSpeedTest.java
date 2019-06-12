@@ -13,9 +13,18 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
+import opennlp.tools.ml.maxent.GISModel;
+import opennlp.tools.util.normalizer.CharSequenceNormalizer;
+import opennlp.tools.util.normalizer.EmojiCharSequenceNormalizer;
+import opennlp.tools.util.normalizer.NumberCharSequenceNormalizer;
+import opennlp.tools.util.normalizer.ShrinkCharSequenceNormalizer;
+import opennlp.tools.util.normalizer.TwitterCharSequenceNormalizer;
+import opennlp.tools.util.normalizer.UrlCharSequenceNormalizer;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -25,25 +34,42 @@ public class LanguageDetectorSpeedTest {
 
     @BeforeClass
     public static void init() throws IOException {
-        LANG_MODEL = new LanguageDetectorModel(new File("C:/data/langid/langdetect-183.bin"));
+        LANG_MODEL = new LanguageDetectorModel(new File("C:/data/langid/lang_models/langdetect-183.bin"));
     }
 
     @Test
     public void testContextGenerators() throws Exception {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 100; i++) {
-            sb.append("estava em uma marcenaria na Rua Bruno http://www.cnn.com blahdeblah@gmail.com");
-        }
-        String txt = sb.toString();
-        LanguageDetectorModel model = new LanguageDetectorModel(new File("C:/data/langid/langdetect-183.bin"));
-        LanguageDetector ld = new LanguageDetectorME(model);
+        Path sampleFile = Paths.get("C:\\data\\langid\\leipzig_short\\leipzig_1000-sents.txt");
+        Map<String, List<String>> langs = loadSample(sampleFile);
+
+
+        CharSequenceNormalizer[] defaultNormalizers = new CharSequenceNormalizer[]{EmojiCharSequenceNormalizer.getInstance(),
+                UrlCharSequenceNormalizer.getInstance(),
+                TwitterCharSequenceNormalizer.getInstance(),
+                NumberCharSequenceNormalizer.getInstance(),
+                ShrinkCharSequenceNormalizer.getInstance()
+        };
+
+        LanguageDetectorModel model = new LanguageDetectorModel(new File("C:/data/langid/lang_models/langdetect-183.bin"));
+        Set<String> set = ((GISModel)model.getMaxentModel()).getFeatures();
+
         for (LanguageDetectorContextGenerator gen : new LanguageDetectorContextGenerator[]{
                 new DefaultLanguageDetectorContextGenerator(1, 3),
-                new NGramCharContextGenerator(1, 3),
-                new SlightlyFasterNGramCharContextGenerator(1, 3),
+                new NGramCharContextGenerator(1, 3, defaultNormalizers),
+                new SlightlyFasterNGramCharContextGenerator(1, 3, defaultNormalizers).setTargetTokens(set),//this harms performance
+                new SlightlyFasterNGramCharContextGenerator(1, 3, defaultNormalizers),
                 new LuceneNGramIterator(1, 3)
         }) {
-            long elapsed = runLoops(txt, new LanguageDetectorME(model, gen));
+            LanguageDetector languageDetector = new LanguageDetectorME(model, gen);
+            long elapsed = 0;
+            for (Map.Entry<String, List<String>> e : langs.entrySet()) {
+                //Collections.shuffle(e.getValue());
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0 ; i < e.getValue().size() && i < 10; i++) {
+                    sb.append(e.getValue().get(i)).append(" ");
+                }
+                elapsed += runLoops(sb.toString(), languageDetector);
+            }
             System.out.println(gen.getClass().getSimpleName() + ": " + elapsed);
         }
     }
@@ -53,8 +79,10 @@ public class LanguageDetectorSpeedTest {
         for (int j = 0; j < 4; j++) {
             long start = System.currentTimeMillis();
             Map<String, Integer> map = new HashMap<>();
-            for (int i = 0; i < 5000; i++) {
+            for (int i = 0; i < 100; i++) {
                 Language language = ld.predictLanguage(txt);
+                //Assert.assertEquals("por", language.getLang());
+               // System.out.println(language.getLang());
                 Integer cnt = map.get(language.getLang());
                 if (cnt == null) {
                     map.put(language.getLang(), 1);

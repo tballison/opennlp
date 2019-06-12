@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import opennlp.tools.util.InvalidFormatException;
@@ -28,6 +29,7 @@ import opennlp.tools.util.InvalidFormatException;
 /**
  * Tests for the {@link LeipzigLanguageSampleStream} class.
  */
+@Ignore
 public class LeipzigLanguageSampleStreamTest {
 
   private static String testDataPath = LeipzigLanguageSampleStreamTest.class

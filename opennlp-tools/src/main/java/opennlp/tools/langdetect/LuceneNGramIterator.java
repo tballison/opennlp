@@ -18,9 +18,13 @@
 package opennlp.tools.langdetect;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import opennlp.tools.util.StringUtil;
 import org.apache.lucene.analysis.Analyzer;
@@ -34,7 +38,7 @@ import org.apache.lucene.analysis.util.ClasspathResourceLoader;
 /**
  * A context generator for language detector.
  */
-public class LuceneNGramIterator implements Iterator<String> {
+public class LuceneNGramIterator implements IterableLanguageDetectorContextGenerator, Iterator<String> {
 
   private static final String FIELD = "f";
 
@@ -63,6 +67,19 @@ public class LuceneNGramIterator implements Iterator<String> {
     }
   }
 
+  public String[] getContext(CharSequence sequence) {
+    try {
+      reset(sequence.toString());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    Set<String> tokens = new HashSet<>();
+    while (hasNext()) {
+      tokens.add(next());
+    }
+    return tokens.toArray(new String[tokens.size()]);
+  }
+
   @Override
   public boolean hasNext() {
     return next != null;
@@ -75,18 +92,7 @@ public class LuceneNGramIterator implements Iterator<String> {
     }
     String ret = next;
     next = null;
-    try {
-      while (tokenStream.incrementToken()) {
-        String t = charTermAttribute.toString();
-        if (StringUtil.isEmpty(t)) {
-          continue;
-        }
-        next = t;
-        break;
-      }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    _next();
     return ret;
   }
 
@@ -99,5 +105,21 @@ public class LuceneNGramIterator implements Iterator<String> {
     tokenStream = analyzer.tokenStream(FIELD, text);
     tokenStream.reset();
     charTermAttribute = tokenStream.getAttribute(CharTermAttribute.class);
+    _next();
+  }
+
+  private void _next() {
+    try {
+      while (tokenStream.incrementToken()) {
+        String t = charTermAttribute.toString();
+        if (StringUtil.isEmpty(t)) {
+          continue;
+        }
+        next = t;
+        break;
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

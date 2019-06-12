@@ -19,6 +19,7 @@ package opennlp.tools.langdetect;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Set;
 
 import opennlp.tools.ngram.NGramCharacterModel;
 import opennlp.tools.ngram.SlightlyFasterNGramCharacterModel;
@@ -35,6 +36,7 @@ public class SlightlyFasterNGramCharContextGenerator implements LanguageDetector
   protected final int minLength;
   protected final int maxLength;
   protected final CharSequenceNormalizer normalizer;
+  private Set<String> targetTokens = null;
 
   /**
    * Creates a customizable @{@link SlightlyFasterNGramCharContextGenerator} that computes ngrams from text
@@ -63,9 +65,23 @@ public class SlightlyFasterNGramCharContextGenerator implements LanguageDetector
     SlightlyFasterNGramCharacterModel model = new SlightlyFasterNGramCharacterModel();
     model.add(normalizer.normalize(document), minLength, maxLength);
 
-    for (String token : model) {
-      context.add(token);
+    if (targetTokens == null) {
+      for (String token : model) {
+        context.add(token);
+      }
+    } else {
+      for (String token : model) {
+        if (targetTokens.contains(token)) {
+          context.add(token);
+        }
+      }
+
     }
     return context.toArray(new String[context.size()]);
+  }
+
+  public SlightlyFasterNGramCharContextGenerator setTargetTokens(Set<String> targetTokens) {
+    this.targetTokens = targetTokens;
+    return this;
   }
 }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import opennlp.morfologik.builder.POSDictionayBuilderTest;
@@ -43,6 +44,7 @@ import opennlp.tools.util.model.ModelType;
 /**
  * Tests for the {@link POSTaggerFactory} class.
  */
+@Ignore
 public class POSTaggerFactoryTest {
 
   private static ObjectStream<POSSample> createSampleStream()

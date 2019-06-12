@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import opennlp.tools.ml.ArrayMath;
 
@@ -63,6 +64,9 @@ public abstract class AbstractModel implements MaxentModel {
     this.outcomeNames =  outcomeNames;
   }
 
+  public Set<String> getFeatures() {
+    return pmap.keySet();
+  }
 
   /**
    * Return the name of the outcome corresponding to the highest likelihood

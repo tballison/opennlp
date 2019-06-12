@@ -28,13 +28,14 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import opennlp.tools.namefind.NameSample;
 import opennlp.tools.sentdetect.NewlineSentenceDetector;
 import opennlp.tools.tokenize.WhitespaceTokenizer;
 import opennlp.tools.util.ObjectStream;
-
+@Ignore
 public class BratNameSampleStreamTest {
 
   private BratNameSampleStream createNameSampleWith(String nameContainsFilter,

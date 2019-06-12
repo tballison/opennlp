@@ -6,6 +6,7 @@ import java.util.Map;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 
@@ -40,29 +41,30 @@ public class MyNGramTokenFilterFactory extends TokenFilterFactory {
         private static final char SPACE = ' ';
         private final int minGram;
         private final int maxGram;
-        private char[] buffer = new char[1000];
+        private final int maxTokenLength = 1024;//in chars
+        private char[] buffer = new char[2*maxTokenLength+1];
         private int curTermLength;
-        private int curTermCodePointCount;
         private int curGramSize;
-        private int curPos;
-        private int curPosIncr;
+        private int curPos;//literal offsets in the char array, not codepoint offsets
         //this is the logical end of the buffer
         private int bufferEnd = 0;
         private boolean noMoreTokens = false;
         private State state;
         private final CharTermAttribute termAtt;
-        private final PositionIncrementAttribute posIncrAtt;
+        private final OffsetAttribute offsetAtt;
+        private int lastOffset = -1;
 
         public MyNGramTokenFilter(TokenStream input, int minGram, int maxGram) {
             super(input);
-            this.termAtt = (CharTermAttribute)this.addAttribute(CharTermAttribute.class);
-            this.posIncrAtt = (PositionIncrementAttribute)this.addAttribute(PositionIncrementAttribute.class);
+            this.termAtt = this.addAttribute(CharTermAttribute.class);
+            this.offsetAtt = this.addAttribute(OffsetAttribute.class);
             if (minGram < 1) {
                 throw new IllegalArgumentException("minGram must be greater than zero");
             } else if (minGram > maxGram) {
                 throw new IllegalArgumentException("minGram must not be greater than maxGram");
             } else {
                 this.minGram = minGram;
+                this.curGramSize = minGram;
                 this.maxGram = maxGram;
             }
         }
@@ -70,49 +72,63 @@ public class MyNGramTokenFilterFactory extends TokenFilterFactory {
         public final boolean incrementToken() throws IOException {
             while(true) {
 
-                //|| this.curPos + this.curGramSize > this.curTermCodePointCount
                 if (this.curGramSize > this.maxGram) {
-                    ++this.curPos;
+                    incrementCurrPos();
                     this.curGramSize = this.minGram;
                 }
-                if (bufferEnd == 0 || curPos + maxGram >= bufferEnd) {
+                if (bufferEnd == 0 || (curPos + maxGram*2) > bufferEnd) {
                     if (! noMoreTokens) {
                         appendBuffer();
                     }
                 }
-                if (buffer[this.curPos] == SPACE && curGramSize == 1) {
+                if (buffer[this.curPos] == SPACE && curGramSize == 1 && maxGram > 1) {
                     curGramSize++;
                 }
-                if (this.curPos + this.curGramSize <= bufferEnd) {
-                    this.restoreState(this.state);
-/*                int start = Character.offsetByCodePoints(this.curTermBuffer, 0, this.curTermLength, 0, this.curPos);
-                int end = Character.offsetByCodePoints(this.curTermBuffer, 0, this.curTermLength, start, this.curGramSize);
-                this.termAtt.copyBuffer(this.curTermBuffer, start, end - start);*/
-                    int count = this.curTermLength;
-                    if (this.curPos + this.curTermLength > this.bufferEnd) {
-                        count = this.bufferEnd-curPos;
-                    }
-                    int start = Character.offsetByCodePoints(this.buffer, this.curPos,
-                            count, this.curPos, 0);
-                    int end = Character.offsetByCodePoints(this.buffer, this.curPos,
-                            count, start, this.curGramSize);
-                    this.termAtt.copyBuffer(this.buffer, start, end - start);
+                int start = this.curPos;
+                int end = getEnd(curGramSize);
 
-                    this.posIncrAtt.setPositionIncrement(this.curPosIncr);
-                    this.curPosIncr = 0;
+                if (end > -1 && end <= bufferEnd) {
+                    this.restoreState(this.state);
+                    this.termAtt.copyBuffer(this.buffer, start, end - start);
                     ++this.curGramSize;
                     return true;
                 } else if (noMoreTokens) {
-                    while (curPos+curGramSize >= bufferEnd && curGramSize > minGram) {
+                    int endEnd = getEnd(curGramSize);
+                    while ((endEnd >= bufferEnd || endEnd < 0) && curGramSize > minGram) {
                         curGramSize--;
+                        endEnd = getEnd(curGramSize);
                     }
                     if (curGramSize == minGram) {
-                        curPos++;
+                        incrementCurrPos();
+//                        curGramSize = minGram;
                     }
-                    if (curPos + minGram > bufferEnd) {
+                    if (getEnd(curGramSize) < 0) {
                         return false;
                     }
                 }
+            }
+        }
+
+        /**
+         *
+         * @return 1 the end (exclusive) or -1 if there are too many codepoints
+         * in the currGramSize before the buffer end.
+         */
+        private int getEnd(int codePointCount) {
+            int end = -1;
+            try {
+                end = Character.offsetByCodePoints(this.buffer, this.curPos,
+                        bufferEnd-this.curPos, this.curPos, codePointCount);
+            } catch (IndexOutOfBoundsException e) {
+                //swallow
+            }
+            return end;
+        }
+
+        private void incrementCurrPos() {
+            ++this.curPos;
+            if (Character.isLowSurrogate(this.buffer[this.curPos])) {
+                ++this.curPos;
             }
         }
 
@@ -120,41 +136,40 @@ public class MyNGramTokenFilterFactory extends TokenFilterFactory {
             if (!this.input.incrementToken()) {
                 noMoreTokens = true;
                 return;
-
             }
             this.state = this.captureState();
             this.curTermLength = this.termAtt.length();
-            this.curTermCodePointCount = Character.codePointCount(this.termAtt, 0, this.termAtt.length());
-            this.curPosIncr += this.posIncrAtt.getPositionIncrement();
-            this.curGramSize = this.minGram;
 
             //+1 for the potential dividing space
-            if ((this.curPos+curTermLength+1) >= this.buffer.length) {
+            if ((bufferEnd+curTermLength+1) >= this.buffer.length) {
                 //have to start over from the beginning
                 int lenToCopy = bufferEnd-curPos;
                 System.arraycopy(this.buffer, curPos, this.buffer, 0, lenToCopy);
                 this.curPos = 0;
                 bufferEnd = lenToCopy;
             }
-            if (posIncrAtt.getPositionIncrement() > 0) {
+            if (offsetAtt.startOffset()-lastOffset > 0) {
                 this.buffer[this.bufferEnd] = SPACE;
                 this.bufferEnd++;
             }
-
             System.arraycopy(termAtt.buffer(), 0, buffer, bufferEnd, curTermLength);
             bufferEnd += curTermLength;
+            lastOffset = offsetAtt.endOffset();
         }
 
         public void reset() throws IOException {
             super.reset();
-            this.curPosIncr = 0;
             this.bufferEnd = 0;
             this.curPos = 0;
+            this.lastOffset = -1;
+            this.curTermLength = 0;
+            this.curGramSize = minGram;
+            this.noMoreTokens = false;
         }
 
         public void end() throws IOException {
             super.end();
-            this.posIncrAtt.setPositionIncrement(this.curPosIncr);
+            //this.posIncrAtt.setPositionIncrement(this.curPosIncr);
         }
     }
 }
